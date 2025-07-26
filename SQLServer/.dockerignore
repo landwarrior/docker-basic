@@ -1,0 +1,22 @@
+# Git関連
+.git
+.gitignore
+
+# ドキュメント
+README.md
+*.md
+
+# ログファイル
+*.log
+
+# 一時ファイル
+*.tmp
+*.temp
+
+# IDE設定
+.vscode/
+.idea/
+
+# OS生成ファイル
+.DS_Store
+Thumbs.db

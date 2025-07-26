@@ -14,7 +14,7 @@ Vagrant.configure("2") do |config|
 
     docker.vm.provider "virtualbox" do |vb|
       vb.cpus = 1
-      vb.memory = "1024"
+      vb.memory = "2048"
     end
 
     docker.vm.provision "shell", inline: <<-SHELL
@@ -25,7 +25,7 @@ Vagrant.configure("2") do |config|
       sudo systemctl enable --now docker
       # このコマンドは vagrant ユーザを docker グループに追加するコマンドです。
       # こうすることで vagrant ユーザが docker コマンドを実行できるようになります。
-      # sudo usermod -aG docker vagrant
+      sudo usermod -aG docker vagrant
       sudo systemctl enable docker
       sudo systemctl start docker
     SHELL
