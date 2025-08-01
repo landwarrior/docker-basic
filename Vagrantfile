@@ -28,6 +28,8 @@ Vagrant.configure("2") do |config|
       sudo usermod -aG docker vagrant
       sudo systemctl enable docker
       sudo systemctl start docker
+      # Docker Swarm の初期化
+      sudo docker swarm init --advertise-addr 192.168.33.150
     SHELL
   end
 end

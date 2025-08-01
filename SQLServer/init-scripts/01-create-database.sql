@@ -50,6 +50,16 @@ CREATE TABLE OrderDetails (
 );
 GO
 
+-- Azure サービステーブルの作成
+CREATE TABLE AzureServices (
+    Id NVARCHAR(200) PRIMARY KEY, -- ID
+    Name NVARCHAR(200) NOT NULL, -- 名前
+    Type NVARCHAR(200), -- 種類
+    DisplayName NVARCHAR(200), -- 表示名
+    ResourceType NVARCHAR(600) -- リソースタイプ
+);
+GO
+
 -- サンプルデータの挿入
 INSERT INTO Users (Name, Email, Age) VALUES 
     ('田中太郎', 'tanaka@example.com', 30),
