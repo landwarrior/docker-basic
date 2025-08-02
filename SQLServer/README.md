@@ -262,15 +262,20 @@ docker service ps sqlserver-stack_sqlserver
 
 ### データベースへの接続
 
-```bash
-# コンテナ内でSQL Serverに接続
-docker exec $(docker ps -q -f name=sqlserver-stack_sqlserver) /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P YourStrong@Passw0rd -C -N
+**注意**: `sqlcmd`を対話モードで使用する場合は、`-it`オプションが必要です。これにより、TTY（ターミナル）に接続して対話的にSQLコマンドを実行できます。
 
-# データベース一覧の確認
+```bash
+# コンテナ内でSQL Serverに接続（対話モード）
+docker exec -it $(docker ps -q -f name=sqlserver-stack_sqlserver) /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P YourStrong@Passw0rd -C -N
+
+# データベース一覧の確認（単一クエリ実行）
 docker exec $(docker ps -q -f name=sqlserver-stack_sqlserver) /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P YourStrong@Passw0rd -C -N -Q "SELECT name FROM sys.databases"
 
-# テーブル一覧の確認
+# テーブル一覧の確認（単一クエリ実行）
 docker exec $(docker ps -q -f name=sqlserver-stack_sqlserver) /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P YourStrong@Passw0rd -C -N -Q "USE TestDB; SELECT table_name FROM information_schema.tables WHERE table_type = 'BASE TABLE'"
+
+# 見やすい表示でのテーブル一覧確認
+docker exec $(docker ps -q -f name=sqlserver-stack_sqlserver) /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P YourStrong@Passw0rd -C -N -h -1 -s "," -Q "USE TestDB; SELECT table_name FROM information_schema.tables WHERE table_type = 'BASE TABLE'"
 ```
 
 ### バックアップの作成
@@ -327,24 +332,72 @@ docker volume rm sqlserver_sqlserver_data
 
 ## 📝 サンプルクエリ
 
+**重要**: `sqlcmd`でSQLコマンドを実行する場合、各コマンドの後に`GO`を入力する必要があります。`GO`はバッチの終了を示し、SQLコマンドを実行するためのトリガーとなります。
+
+**表示の改善**: デフォルトの出力は見づらいため、以下のオプションを使用することを推奨します：
+- `-h -1`: ヘッダーを無効化
+- `-s ","`: カンマ区切りで出力
+- `-W`: 列幅を調整
+
+**NVARCHARの表示問題**: `NVARCHAR(200)`は可変長文字列ですが、`sqlcmd`のデフォルト表示では列の最大幅（200文字分）で固定幅表示されるため、短い文字列でも空白埋めされて見づらくなります。解決策として：
+- `LEFT()`関数で列幅を制限
+- `-W`オプションで列幅を自動調整
+- `-s ","`でCSV形式で出力
+
 ### 基本的なクエリ
 
 #### ユーザー一覧の取得
 ```sql
 USE TestDB;
 SELECT * FROM Users;
+GO
 ```
 
 #### 商品一覧の取得
 ```sql
 USE TestDB;
 SELECT * FROM Products;
+GO
 ```
 
 #### 注文一覧の取得
 ```sql
 USE TestDB;
 SELECT * FROM Orders;
+GO
+```
+
+#### AzureServices一覧の取得
+```sql
+USE TestDB;
+SELECT * FROM AzureServices;
+GO
+```
+
+**列幅を制限した見やすいクエリ**:  
+ただし -W でも問題なさそう
+```sql
+USE TestDB;
+SELECT 
+    LEFT(Id, 50) AS Id,
+    LEFT(Name, 30) AS Name,
+    LEFT(Type, 30) AS Type,
+    LEFT(DisplayName, 30) AS DisplayName,
+    LEFT(ResourceType, 50) AS ResourceType
+FROM AzureServices;
+GO
+```
+
+**見やすい表示オプション**:
+```bash
+# ヘッダーなし、カンマ区切りで表示
+docker exec $(docker ps -q -f name=sqlserver-stack_sqlserver) /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P YourStrong@Passw0rd -C -N -h -1 -s "," -Q "USE TestDB; SELECT TOP 5 * FROM AzureServices;"
+
+# 列幅調整で表示
+docker exec $(docker ps -q -f name=sqlserver-stack_sqlserver) /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P YourStrong@Passw0rd -C -N -W -Q "USE TestDB; SELECT TOP 5 * FROM AzureServices;"
+
+# 列幅を明示的に指定して表示
+docker exec $(docker ps -q -f name=sqlserver-stack_sqlserver) /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P YourStrong@Passw0rd -C -N -h -1 -s "," -Q "USE TestDB; SELECT TOP 5 Id, Name, Type, DisplayName, ResourceType FROM AzureServices;"
 ```
 
 ### 結合クエリ
@@ -361,6 +414,7 @@ SELECT
     o.Status
 FROM Users u
 INNER JOIN Orders o ON u.Id = o.UserId;
+GO
 ```
 
 #### 注文詳細の取得
@@ -377,6 +431,7 @@ FROM Orders o
 INNER JOIN Users u ON o.UserId = u.Id
 INNER JOIN OrderDetails od ON o.Id = od.OrderId
 INNER JOIN Products p ON od.ProductId = p.Id;
+GO
 ```
 
 ### 集計クエリ
@@ -393,6 +448,7 @@ FROM Products p
 LEFT JOIN OrderDetails od ON p.Id = od.ProductId
 GROUP BY p.Name, p.Id
 ORDER BY TotalRevenue DESC;
+GO
 ```
 
 #### ユーザー別購入金額集計
@@ -408,6 +464,7 @@ FROM Users u
 LEFT JOIN Orders o ON u.Id = o.UserId
 GROUP BY u.Id, u.Name, u.Email
 ORDER BY TotalSpent DESC;
+GO
 ```
 
 ### ストアドプロシージャの使用
@@ -416,6 +473,7 @@ ORDER BY TotalSpent DESC;
 ```sql
 USE TestDB;
 EXEC sp_GetUserOrders @UserId = 1;
+GO
 ```
 
 ### ビューの使用
@@ -424,6 +482,7 @@ EXEC sp_GetUserOrders @UserId = 1;
 ```sql
 USE TestDB;
 SELECT * FROM vw_UserOrders;
+GO
 ```
 
 ### 条件付きクエリ
@@ -440,6 +499,7 @@ FROM Orders o
 INNER JOIN Users u ON o.UserId = u.Id
 WHERE o.TotalAmount >= 100000
 ORDER BY o.TotalAmount DESC;
+GO
 ```
 
 #### 在庫不足商品の検索（在庫5個以下）
@@ -453,6 +513,7 @@ SELECT
 FROM Products
 WHERE StockQuantity <= 5
 ORDER BY StockQuantity ASC;
+GO
 ```
 
 #### 最近の注文（過去30日）
@@ -467,6 +528,7 @@ FROM Orders o
 INNER JOIN Users u ON o.UserId = u.Id
 WHERE o.OrderDate >= DATEADD(day, -30, GETDATE())
 ORDER BY o.OrderDate DESC;
+GO
 ```
 
 ### 統計クエリ
@@ -483,6 +545,7 @@ SELECT
 FROM Orders o
 GROUP BY YEAR(o.OrderDate), MONTH(o.OrderDate)
 ORDER BY Year DESC, Month DESC;
+GO
 ```
 
 #### 商品カテゴリ別分析
@@ -504,6 +567,7 @@ GROUP BY
         WHEN p.Price >= 50000 THEN '中額商品'
         ELSE '低額商品'
     END;
+GO
 ```
 
 ## 🔄 開発ワークフロー
