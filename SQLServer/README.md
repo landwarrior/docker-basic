@@ -196,6 +196,10 @@ Users (1) ←→ (N) Orders (1) ←→ (N) OrderDetails (N) ←→ (1) Products
    - `Type` (NVARCHAR(200)) - サービス種類
    - `DisplayName` (NVARCHAR(200)) - 表示名
    - `ResourceType` (NVARCHAR(600)) - リソースタイプ
+   - `created_at` (DATETIME2, DEFAULT GETDATE()) - 作成日時
+   - `create_user` (NVARCHAR(200), NULL) - 作成者
+   - `updated_at` (DATETIME2, DEFAULT GETDATE()) - 更新日時
+   - `update_user` (NVARCHAR(200), NULL) - 更新者
 
 ### 作成されるインデックス
 

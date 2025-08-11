@@ -56,7 +56,11 @@ CREATE TABLE AzureServices (
     Name NVARCHAR(200) NOT NULL, -- 名前
     Type NVARCHAR(200), -- 種類
     DisplayName NVARCHAR(200), -- 表示名
-    ResourceType NVARCHAR(600) -- リソースタイプ
+    ResourceType NVARCHAR(600), -- リソースタイプ
+    created_at DATETIME2 DEFAULT GETDATE(), -- 作成日時（初期値: 現在日時）
+    create_user NVARCHAR(200) NULL, -- 作成者
+    updated_at DATETIME2 DEFAULT GETDATE(), -- 更新日時（初期値: 現在日時）
+    update_user NVARCHAR(200) NULL -- 更新者
 );
 GO
 
