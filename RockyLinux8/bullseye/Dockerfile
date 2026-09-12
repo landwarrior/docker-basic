@@ -1,8 +1,14 @@
 FROM python:3.10-bullseye
 
-# VM の時刻ずれで Release が expired と判定される場合があるため Valid-Until を無視する
-# RUN apt-get -o Acquire::Check-Valid-Until=false update
-# chronyd をインストールすると時刻がずれる問題が解消され Release の expired も出なくなるはず
-RUN apt-get  update
+# expired となっている場合は Valid-Until を無視する
+RUN apt-get -o Acquire::Check-Valid-Until=false update
+# 以下のように archive.debian.org を使用するのは元のリポジトリで does not have a Release file のエラーが出てから
+# RUN    echo "deb http://archive.debian.org/debian bullseye main" > /etc/apt/sources.list \
+#     && echo "deb http://archive.debian.org/debian-security bullseye-security main" >> /etc/apt/sources.list \
+#     && echo "deb http://archive.debian.org/debian bullseye-updates main" >> /etc/apt/sources.list \
+#     && apt-get update
+
+
+
 
 CMD ["/bin/bash"]
