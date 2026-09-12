@@ -57,7 +57,7 @@ cd /vagrant/SQLServer
 
 # SQL Serverの起動を待つ
 echo "Waiting for SQL Server to start..."
-sleep 30
+sleep 60
 
 # 初期化SQLファイルを実行
 echo "Running initialization scripts..."

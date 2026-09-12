@@ -1,0 +1,28 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+
+  config.vm.define "rocky8" do |rocky8|
+    rocky8.vm.box = "bento/rockylinux-8"
+    rocky8.vm.hostname = "rocky8.local"
+
+    rocky8.vm.network "private_network", ip: "192.168.33.15"
+    # rocky8.vm.synced_folder "../data", "/vagrant_data"
+
+    rocky8.vm.provider "virtualbox" do |vb|
+      vb.cpus = 1
+      vb.memory = "4096"
+    end
+
+    rocky8.vm.provision "shell", inline: <<-SHELL
+      sudo timedatectl set-timezone Asia/Tokyo
+      sudo dnf remove -y podman runc
+      sudo dnf install -y dnf-plugins-core
+      sudo dnf config-manager --add-repo https://download.docker.com/linux/rhel/docker-ce.repo
+      sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+      sudo systemctl enable --now docker
+      sudo docker swarm init --advertise-addr 192.168.33.15
+    SHELL
+  end
+end

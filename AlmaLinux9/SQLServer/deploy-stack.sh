@@ -19,7 +19,7 @@ docker stack deploy -c docker-compose.yml $STACK_NAME
 
 # デプロイ状況を確認
 echo "デプロイ状況を確認中..."
-sleep 5
+sleep 30
 docker stack services $STACK_NAME
 
 echo "=== デプロイ完了 ==="
