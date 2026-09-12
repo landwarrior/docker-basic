@@ -35,6 +35,21 @@ EOF
       sudo systemctl enable --now mariadb
       mysql -uroot -e "create user vagrant@localhost"
       mysql -uroot -e "grant all privileges on *.* to vagrant@localhost;"
+      # Rocky 8 の AppStream には Python 3.9 までしかないため、3.10 はソースから altinstall する
+      sudo dnf install -y gcc openssl-devel bzip2-devel libffi-devel zlib-devel \
+        readline-devel sqlite-devel wget make tar
+      cd /tmp
+      curl -fsSL -o Python-3.10.21.tgz https://www.python.org/ftp/python/3.10.21/Python-3.10.21.tgz
+      tar xzf Python-3.10.21.tgz
+      cd Python-3.10.21
+      ./configure --with-ensurepip=install
+      make -j"$(nproc)"
+      sudo make altinstall
+      cd /
+      rm -rf /tmp/Python-3.10.21 /tmp/Python-3.10.21.tgz
+      # 非対話シェルでは /usr/local/bin が PATH に無いことがあるためフルパスで確認する
+      /usr/local/bin/python3.10 --version
+      /usr/local/bin/pip3.10 --version
     SHELL
   end
 end
