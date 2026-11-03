@@ -1,0 +1,58 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+  config.vm.define "alma8" do |alma8|
+    # Vagrant Cloud (HCP Vagrant Registry) は 2026 年末で終了するため公式カタログを使う
+    alma8.vm.box = "almalinux/8"
+    alma8.vm.box_server_url = "https://vagrant.almalinux.org"
+    alma8.vm.hostname = "alma8.local"
+
+    alma8.vm.network "private_network", ip: "192.168.33.80"
+    # alma8.vm.synced_folder "../data", "/vagrant_data"
+
+    alma8.vm.provider "virtualbox" do |vb|
+      vb.cpus = 1
+      vb.memory = "4096"
+    end
+
+    alma8.vm.provision "shell", inline: <<-SHELL
+      sudo timedatectl set-timezone Asia/Tokyo
+      sudo dnf remove -y podman runc
+      sudo dnf install -y dnf-plugins-core
+      sudo dnf config-manager --add-repo https://download.docker.com/linux/rhel/docker-ce.repo
+      sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+      sudo systemctl enable --now docker
+      # vagrant ユーザが docker コマンドを実行できるようにする
+      sudo usermod -aG docker vagrant
+      sudo docker swarm init --advertise-addr 192.168.33.80
+      sudo dnf install -y mariadb-server
+      sudo tee /etc/my.cnf.d/charset.cnf >/dev/null <<'EOF'
+[mysqld]
+character-set-server = utf8mb4
+collation-server     = utf8mb4_bin
+
+[client]
+default-character-set = utf8mb4
+EOF
+      sudo systemctl enable --now mariadb
+      mysql -uroot -e "create user vagrant@localhost"
+      mysql -uroot -e "grant all privileges on *.* to vagrant@localhost;"
+      # AlmaLinux 8 の AppStream には Python 3.9 までしかないため、3.10 はソースから altinstall する
+      sudo dnf install -y gcc openssl-devel bzip2-devel libffi-devel zlib-devel \
+        readline-devel sqlite-devel wget make tar
+      cd /tmp
+      curl -fsSL -o Python-3.10.21.tgz https://www.python.org/ftp/python/3.10.21/Python-3.10.21.tgz
+      tar xzf Python-3.10.21.tgz
+      cd Python-3.10.21
+      ./configure --with-ensurepip=install
+      make -j"$(nproc)"
+      sudo make altinstall
+      cd /
+      rm -rf /tmp/Python-3.10.21 /tmp/Python-3.10.21.tgz
+      # 非対話シェルでは /usr/local/bin が PATH に無いことがあるためフルパスで確認する
+      /usr/local/bin/python3.10 --version
+      /usr/local/bin/pip3.10 --version
+    SHELL
+  end
+end
