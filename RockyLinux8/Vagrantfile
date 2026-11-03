@@ -2,18 +2,41 @@
 # vi: set ft=ruby :
 
 Vagrant.configure("2") do |config|
+  host_path = File.expand_path(__dir__)
+  ga_ready_path = File.join(__dir__, ".vagrant", "machines", "rocky8", "virtualbox", "ga-ready")
+  ga_ready = File.exist?(ga_ready_path)
 
   config.vm.define "rocky8" do |rocky8|
-    rocky8.vm.box = "bento/rockylinux-8"
+    # Vagrant Cloud (HCP Vagrant Registry) は 2026 年末で終了するため公式 box を直接指定する
+    rocky8.vm.box = "rockylinux/8"
+    rocky8.vm.box_url = "https://dl.rockylinux.org/pub/rocky/8/images/x86_64/Rocky-8-Vagrant-Vbox.latest.x86_64.box"
     rocky8.vm.hostname = "rocky8.local"
 
     rocky8.vm.network "private_network", ip: "192.168.33.15"
     # rocky8.vm.synced_folder "../data", "/vagrant_data"
 
+    # 公式 box は vboxsf モジュール未構築のため、準備完了までは Vagrant の自動マウントを無効化する
+    rocky8.vm.synced_folder ".", "/vagrant", disabled: !ga_ready
+
     rocky8.vm.provider "virtualbox" do |vb|
       vb.cpus = 1
       vb.memory = "4096"
+      # 公式 Rocky 8 Vagrant box は UEFI 前提。BIOS のままだと起動できず SSH 待ちでタイムアウトする
+      vb.customize ["modifyvm", :id, "--firmware", "efi"]
+      vb.check_guest_additions = false
     end
+
+    # 公式 box 同梱の Guest Additions は kernel headers 無しでモジュール構築に失敗するため再構築する
+    rocky8.vm.provision "fix-guest-additions", type: "shell", inline: <<-SHELL
+      set -eux
+      if ! lsmod | grep -q '^vboxsf'; then
+        dnf install -y "kernel-devel-$(uname -r)" "kernel-headers-$(uname -r)" \
+          gcc make perl elfutils-libelf-devel tar bzip2
+        /sbin/rcvboxadd setup
+        systemctl restart vboxadd.service || true
+        modprobe vboxsf
+      fi
+    SHELL
 
     rocky8.vm.provision "shell", inline: <<-SHELL
       sudo timedatectl set-timezone Asia/Tokyo
@@ -51,5 +74,39 @@ EOF
       /usr/local/bin/python3.10 --version
       /usr/local/bin/pip3.10 --version
     SHELL
+  end
+
+  # 初回 up では設定再読込前に共有を有効化できないため、Guest Additions 準備後に手動マウントする
+  config.trigger.after :up do |trigger|
+    trigger.only_on = "rocky8"
+    trigger.name = "Mount /vagrant after Guest Additions are ready"
+    trigger.ruby do |env, machine|
+      next unless machine.id && machine.communicate.ready?
+      next unless machine.communicate.test("lsmod | grep -q '^vboxsf'")
+
+      marker = machine.data_dir.join("ga-ready")
+      marker.open("w") { |f| f.write("1") } unless marker.exist?
+
+      next if machine.communicate.test("mountpoint -q /vagrant")
+
+      vboxmanage = [
+        "C:/Program Files/Oracle/VirtualBox/VBoxManage.exe",
+        "VBoxManage"
+      ].find { |candidate| candidate == "VBoxManage" || File.exist?(candidate) }
+
+      info = `"#{vboxmanage}" showvminfo "#{machine.id}" --machinereadable`
+      unless info =~ /SharedFolderName(?:Machine|Transient)Mapping\d+="vagrant"/
+        # 起動中の VM には永続共有を追加できないため --transient を使う
+        ok = system(
+          vboxmanage, "sharedfolder", "add", machine.id,
+          "--name", "vagrant", "--hostpath", host_path, "--transient"
+        )
+        raise "failed to add transient shared folder 'vagrant'" unless ok
+      end
+
+      machine.communicate.sudo("mkdir -p /vagrant")
+      machine.communicate.sudo("mount -t vboxsf -o uid=1000,gid=1000,_netdev vagrant /vagrant")
+      env.ui.info("/vagrant をマウントしました（次回以降の up/reload では Vagrant が自動マウントします）")
+    end
   end
 end

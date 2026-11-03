@@ -1,0 +1,44 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+  # vagrant で立てる仮想マシンの名前
+  config.vm.define "alma10" do |docker|
+    # Vagrant Cloud (HCP Vagrant Registry) は 2026 年末で終了するので利用できない
+    docker.vm.box = "almalinux/10"
+    docker.vm.box_server_url = "https://vagrant.almalinux.org"
+    # ホスト名は任意に設定する
+    docker.vm.hostname = "alma10.local"
+    # IP アドレスは任意に設定する
+    docker.vm.network "private_network", ip: "192.168.33.160"
+    # ホストのファイルは必要に応じて同期する（ベースでは同期するものがないからコメントアウト）
+    # config.vm.synced_folder "../data", "/vagrant_data"
+
+    docker.vm.provider "virtualbox" do |vb|
+      vb.cpus = 1
+      vb.memory = "4096"
+    end
+
+    docker.vm.provision "shell", inline: <<-SHELL
+      sudo timedatectl set-timezone Asia/Tokyo
+      sudo dnf remove -y podman runc
+      # AlmaLinux 10 / EL10 では Docker の bridge/NAT に xt_addrtype 等が必要。
+      # 公式ボックスには kernel-modules-extra が入っていないため明示的に入れる。
+      # 実行中カーネル向けを指定しないと、新しいカーネル用だけ入り起動に失敗する。
+      sudo dnf install -y "kernel-modules-extra-$(uname -r)"
+      printf '%s\n' xt_addrtype br_netfilter ip_tables | sudo tee /etc/modules-load.d/docker.conf >/dev/null
+      sudo modprobe xt_addrtype
+      sudo modprobe br_netfilter
+      sudo modprobe ip_tables
+      sudo dnf install -y dnf-plugins-core
+      sudo dnf config-manager --add-repo https://download.docker.com/linux/rhel/docker-ce.repo
+      sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+      sudo systemctl enable --now docker
+      # このコマンドは vagrant ユーザを docker グループに追加するコマンドです。
+      # こうすることで vagrant ユーザが docker コマンドを実行できるようになります。
+      sudo usermod -aG docker vagrant
+      # Docker Swarm の初期化
+      sudo docker swarm init --advertise-addr 192.168.33.160
+    SHELL
+  end
+end
