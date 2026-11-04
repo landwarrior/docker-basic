@@ -17,11 +17,23 @@ Vagrant.configure("2") do |config|
 
     docker.vm.provider "virtualbox" do |vb|
       vb.cpus = 1
-      vb.memory = "4096"
+      vb.memory = "2048"
     end
 
     docker.vm.provision "shell", inline: <<-SHELL
       sudo timedatectl set-timezone Asia/Tokyo
+
+      # swap メモリを有効化（2GiB）
+      if ! swapon --show | grep -q '/swapfile'; then
+        sudo fallocate -l 2G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=2048
+        sudo chmod 600 /swapfile
+        sudo mkswap /swapfile
+        sudo swapon /swapfile
+      fi
+      if ! grep -q '^/swapfile ' /etc/fstab; then
+        echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab >/dev/null
+      fi
+
       sudo dnf remove -y podman runc
       sudo dnf install -y dnf-plugins-core
       sudo dnf config-manager --add-repo https://download.docker.com/linux/rhel/docker-ce.repo
