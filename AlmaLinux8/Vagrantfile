@@ -13,11 +13,25 @@ Vagrant.configure("2") do |config|
 
     alma8.vm.provider "virtualbox" do |vb|
       vb.cpus = 1
-      vb.memory = "1024"
+      vb.memory = "2048"
     end
 
     alma8.vm.provision "shell", inline: <<-SHELL
       sudo timedatectl set-timezone Asia/Tokyo
+
+      # 公式 box は公開鍵認証のみ。sshd は最初に読んだ値を採用するため、
+      # 本体と drop-in の両方でパスワード認証を有効にする
+      sudo sed -i -E 's/^[[:space:]]*#?[[:space:]]*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
+      grep -q '^PasswordAuthentication yes' /etc/ssh/sshd_config || echo 'PasswordAuthentication yes' | sudo tee -a /etc/ssh/sshd_config >/dev/null
+      sudo sed -i -E 's/^[[:space:]]*#?[[:space:]]*ChallengeResponseAuthentication.*/ChallengeResponseAuthentication yes/' /etc/ssh/sshd_config
+      if [ -d /etc/ssh/sshd_config.d ]; then
+        sudo sed -i -E 's/^[[:space:]]*#?[[:space:]]*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config.d/*.conf 2>/dev/null || true
+        printf '%s\n' 'PasswordAuthentication yes' 'ChallengeResponseAuthentication yes' | sudo tee /etc/ssh/sshd_config.d/00-password-auth.conf >/dev/null
+      fi
+      echo 'vagrant:vagrant' | sudo chpasswd
+      sudo passwd -u vagrant || true
+      sudo sshd -t
+      sudo systemctl reload sshd
 
       # swap メモリを有効化（2GiB）
       if ! swapon --show | grep -q '/swapfile'; then
